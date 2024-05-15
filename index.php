@@ -1,11 +1,26 @@
 <!DOCTYPE html>
 <?php 
 
-function isRegex($str0) {
-	$regex = "/^\/[\s\S]+\/$/";
-	return preg_match($regex, $str0);
+function startsWith($haystack, $needle) {
+    // Get the length of the needle, since strncmp needs it
+    $length = strlen($needle);
+    // Use strncmp to compare the start of the haystack with the needle
+    return (strncmp($haystack, $needle, $length) === 0);
 }
-function matchall($match,$name) { return true; }
+
+function matchall($match, $name) {
+    if (startsWith($match, 'regex:')) {
+        // Extract actual regex pattern
+        $pattern = substr($match, 6);
+        return preg_match($pattern, $name);
+    } else if (startsWith($match, 'pattern:')) {
+        $pattern = substr($match, 8);
+        return fnmatch($pattern, $name);
+    } else {
+        return strpos($name, $match) !== false;
+    }
+}
+// function matchall($match,$name) { return true; }
 
 /**
  * Renders a link.
@@ -156,26 +171,20 @@ if( $bookm != "" ) {
 </form></p>
 <div id="piccont">
 <?php
-$matchf = matchall;
-$match = "";
-if( isset($_GET['match']) ) {
-	$match = $_GET['match'];
-	if ( isRegex($match) ) {
-		$matchf = preg_match;
-		$match = $match;
-	} else {
-		$matchf = fnmatch;
-		$match = '*'.$match.'*';
-	}
-}
 $displayed = array();
-if ($_GET['noplots']) {
+if (isset($_GET['match'])) {
+    $match = $_GET['match'];
+}
+else {
+    $match = "";
+}
+if ( isset($_GET['noplots']) && $_GET['noplots']) {
     print "Plots will not be displayed.\n";
 } else {
 	$other_exts = array('.pdf', '.cxx', '.eps', '.ps', '.root', '.txt', ".C", '.html');
 	$main_exts = array('.png','.gif','.jpg','.jpeg');
 	$folders = array('*');
-	if( intval($_GET['depth'])>1 ) {
+	if( isset($_GET['depth']) && intval($_GET['depth'])>1 ) {
 		$wildc="*";
 		for( $de=2; $de<=intval($_GET['depth']); $de++ ){
 			$wildc = $wildc."/*";
@@ -190,8 +199,7 @@ if ($_GET['noplots']) {
 	}
 	sort($filenames);
 	foreach ($filenames as $filename) {
-		if( ! $matchf($match,$filename) ) { continue; }
-		/// if (isset($_GET['match']) && !fnmatch('*'.$_GET['match'].'*', $filename)) continue;
+		if( ! matchall($match, $filename) ) { continue; }
 		$path_parts = pathinfo($filename);
 		if (PHP_VERSION_ID < 50200) {
 			$path_parts['filename'] = str_replace('.'.$path_parts['extension'],"",$path_parts['basename']);
@@ -255,38 +263,34 @@ if ($_GET['noplots']) {
 	}
 }
 ?>
-</div>
+
 <div style="display: block; clear:both;">
 <h2><a name="files">Other files</a></h2>
 <ul>
-<?
-   foreach ($allfiles as $filename) {
-   if ($_GET['noplots'] || !in_array($filename, $displayed))
-   {
-   /// if (isset($_GET['match']) && !fnmatch('*'.$_GET['match'].'*', $filename)) continue;
-       if( ! $matchf($match,$filename) ) { continue; }
-       if( fnmatch("*_thumb.*", $filename) ) { continue; }
-       if ( substr($filename,-1) == "~" ) continue;
-       if (is_dir($filename))
-       {
-           // print "<li>[DIR] <a href=\"$filename\">$filename</a></li>";
-       }
-       else
-       {
-           if( fnmatch("*.root", $filename) ) {
-               print "<li><a href=\"$jsroot_instance?file=$folder/$filename\">$filename</a></li>";
-           }
-           else {
+<?php
+foreach ($filenames as $filename) {
+    if ( (isset($_GET['noplots']) && $_GET['noplots']) || !in_array($filename, $displayed)) {
+        if (! $matchf($match, $filename)) { continue; }
+        if (fnmatch("*_thumb.*", $filename)) { continue; }
+        if (substr($filename, -1) == "~") { continue; }
+
+        if (is_dir($filename)) {
+            print "<li>[DIR] <a href=\"$filename\">$filename</a></li>";
+        } else {
+            if (fnmatch("*.root", $filename)) {
+                print "<li><a href=\"$jsroot_instance?file=$folder/$filename\">$filename</a></li>";
+            } else {
                 print "<li><a href=\"$filename\">$filename</a></li>";
-           }
-       }  
-   }
-   }
-   ?>
+            }
+        }
+    }
+}
+?>
 </ul>
 </div>
+
 <p>
-Like this page? <a href="https://github.com/musella/php-plots">Get it here.</a><br />
+Like this page? <a href="https://github.com/simonepigazzini/php-plots">Get it here.</a><br />
 Credits: Giovanni Petrucciani.
 </p>
 </body>
